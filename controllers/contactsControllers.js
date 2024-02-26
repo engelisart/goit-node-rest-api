@@ -1,6 +1,5 @@
 import * as contactsService from "../services/contactsServices.js";
 import HttpError from "../helpers/HttpError.js";
-
 import ctrlWrapper from "../helpers/ctrlwrapper.js";
 
 const getAllContacts = async (req, res) => {
@@ -46,10 +45,25 @@ const updateContact = async (req, res) => {
   res.json(contact);
 };
 
+const updateStatusContact = async (req, res) => {
+  const { contactId } = req.params;
+  const contact = await contactsService.updateStatusContact(
+    contactId,
+    req.body
+  );
+
+  if (!contact) {
+    throw HttpError(404);
+  }
+
+  res.json(contact);
+};
+
 export default {
   getAllContacts: ctrlWrapper(getAllContacts),
   getOneContact: ctrlWrapper(getOneContact),
   deleteContact: ctrlWrapper(deleteContact),
   createContact: ctrlWrapper(createContact),
   updateContact: ctrlWrapper(updateContact),
+  updateStatusContact: ctrlWrapper(updateStatusContact),
 };
