@@ -24,14 +24,16 @@ const contactsSchema = new Schema(
       required: true,
       ref: "User",
     },
+    avatarURL: {
+      type: String,
+      required: true,
+    },
   },
   { versionKey: false, timestamps: true }
 );
 
 contactsSchema.post("save", haveSaveError);
-
 contactsSchema.pre("findOneAndUpdate", setUpdateSettings);
-
 contactsSchema.post("findOneAndUpdate", haveSaveError);
 
 const Contact = model("contact", contactsSchema);

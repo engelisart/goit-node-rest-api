@@ -2,14 +2,30 @@ import * as contactsService from "../services/contactsServices.js";
 import HttpError from "../helpers/HttpError.js";
 import ctrlWrapper from "../helpers/ctrlwrapper.js";
 
+import fs from "fs/promises";
+import path from "path";
+
+const contactsDir = path.resolve("public", "avatars");
+
 const getAllContacts = async (req, res) => {
-  const contacts = await contactsService.listContacts();
-  res.json(contacts);
+  const { _id, owner } = req.user;
+  const { page = 1, limit = 20 } = req.query;
+  const skip = (page - 1) * limit;
+  const contacts = await contactsService.getContactsByFilter(
+    { owner },
+    { limit, skip }
+  );
+  const total = await contactsService.getContactsCountByFilter({ owner });
+  res.json({ contacts, total });
 };
 
 const getOneContact = async (req, res) => {
   const { contactId } = req.params;
-  const contact = await contactsService.getContactById(contactId);
+  const { _id: owner } = req.user;
+  const contact = await contactsService.getContactById({
+    _id: contactId,
+    owner,
+  });
 
   if (!contact) {
     throw HttpError(404);
@@ -20,7 +36,11 @@ const getOneContact = async (req, res) => {
 
 const deleteContact = async (req, res) => {
   const { contactId } = req.params;
-  const contact = await contactsService.removeContact(contactId);
+  const { _id: owner } = req.user;
+  const contact = await contactsService.removeContact({
+    _id: contactId,
+    owner,
+  });
 
   if (!contact) {
     throw HttpError(404);
@@ -30,13 +50,28 @@ const deleteContact = async (req, res) => {
 };
 
 const createContact = async (req, res) => {
-  const contact = await contactsService.addContact(req.body);
+  const { path: oldPath, filename } = req.file;
+  const newPath = path.join(contactsDir, filename);
+  await fs.rename(oldPath, newPath);
+  const { _id: owner } = req.user;
+
+  const avatarURL = path.join("avatars", filename);
+  const contact = await contactsService.addContact({
+    ...req.body,
+    avatarURL,
+    owner,
+  });
+
   res.status(201).json(contact);
 };
 
 const updateContact = async (req, res) => {
   const { contactId } = req.params;
-  const contact = await contactsService.updateContact(contactId, req.body);
+  const { _id: owner } = req.user;
+  const contact = await contactsService.updateContact(
+    { _id: contactId, owner },
+    req.body
+  );
 
   if (!contact) {
     throw HttpError(404);
@@ -47,8 +82,9 @@ const updateContact = async (req, res) => {
 
 const updateStatusContact = async (req, res) => {
   const { contactId } = req.params;
+  const { _id: owner } = req.user;
   const contact = await contactsService.updateStatusContact(
-    contactId,
+    { _id: contactId, owner },
     req.body
   );
 
