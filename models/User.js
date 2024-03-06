@@ -25,9 +25,12 @@ const userSchema = new Schema(
       enum: ["starter", "pro", "business"],
       default: "starter",
     },
+    // avatarURL: {
+    //   type: String,
+    //   required: true,
+    // },
     token: {
       type: String,
-      default: null,
     },
   },
   {
@@ -37,9 +40,7 @@ const userSchema = new Schema(
 );
 
 userSchema.post("save", haveSaveError);
-
 userSchema.pre("findOneAndUpdate", setUpdateSettings);
-
 userSchema.post("findOneAndUpdate", haveSaveError);
 
 const User = model("user", userSchema);

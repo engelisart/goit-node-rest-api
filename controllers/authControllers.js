@@ -4,11 +4,17 @@ import * as userServices from "../services/userServices.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import "dotenv/config";
+import gravatar from "gravatar";
+import path from "path";
+import fs from "fs/promises";
+import Jimp from "jimp";
 
 import HttpError from "../helpers/HttpError.js";
 import ctrlWrapper from "../helpers/ctrlwrapper.js";
 
 const { JWT_SECRET } = process.env;
+
+const contactsDir = path.resolve("public", "avatars");
 
 const signup = async (req, res) => {
   const { email } = req.body;
@@ -18,23 +24,26 @@ const signup = async (req, res) => {
     throw HttpError(409, "Email in use");
   }
 
-  const newUser = await authServices.signup(req.body);
+  const avatarURL = gravatar.url(email);
+  const newUser = await authServices.signup({ ...req.body, avatarURL });
 
   res.status(201).json({
     user: {
       email: newUser.email,
-      subscriotion: newUser.subscriotion,
+      subscription: newUser.subscription,
     },
   });
 };
 
 const signin = async (req, res) => {
   const { email, password } = req.body;
+
   const user = await userServices.findUser({ email });
 
   if (!user) {
-    throw HttpError(401, "Email or password is wrong");
+    throw HttpError(401, "User not found");
   }
+
   const passwordCompare = await bcrypt.compare(password, user.password);
 
   if (!passwordCompare) {
@@ -51,23 +60,40 @@ const signin = async (req, res) => {
   res.json({
     token,
     user: {
-      email: newUser.email,
-      subscriotion: newUser.subscriotion,
+      email: user.email,
+      subscription: user.subscription,
+      avatarURL: gravatar.url(email),
     },
   });
 };
 
 const current = async (req, res) => {
-  const { email, subscriotion } = req.user;
+  const { email, subscription } = req.user;
 
-  res.json({ email, subscriotion });
+  res.json({ email, subscription });
 };
 
 const logout = async (req, res) => {
   const { _id } = req.user;
-  await authServices.setToken(_id);
+  await authServices.setToken(_id, null);
 
   res.json({ status: 204 });
+};
+
+const avatars = async (req, res) => {
+  const { _id } = req.user;
+  const { path: oldPath, filename } = req.file;
+
+  const img = await Jimp.read(oldPath);
+  await img.resize(250, 250).writeAsync(oldPath);
+
+  const newPath = path.join(contactsDir, filename);
+  await fs.rename(oldPath, newPath);
+
+  const avatarURL = path.join("avatars", filename);
+
+  await authServices.setAvatar(_id, avatarURL);
+  return res.json({ avatarURL });
 };
 
 export default {
@@ -75,4 +101,5 @@ export default {
   signin: ctrlWrapper(signin),
   current: ctrlWrapper(current),
   logout: ctrlWrapper(logout),
+  avatars: ctrlWrapper(avatars),
 };
