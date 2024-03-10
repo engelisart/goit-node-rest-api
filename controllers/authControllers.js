@@ -8,11 +8,14 @@ import gravatar from "gravatar";
 import path from "path";
 import fs from "fs/promises";
 import Jimp from "jimp";
+import { nanoid } from "nanoid";
 
 import HttpError from "../helpers/HttpError.js";
 import ctrlWrapper from "../helpers/ctrlwrapper.js";
 
-const { JWT_SECRET } = process.env;
+import sendEmail from "../helpers/sendEmail.js";
+
+const { JWT_SECRET, BASE_URL } = process.env;
 
 const contactsDir = path.resolve("public", "avatars");
 
@@ -24,8 +27,22 @@ const signup = async (req, res) => {
     throw HttpError(409, "Email in use");
   }
 
+  const verificationToken = nanoid();
+
   const avatarURL = gravatar.url(email);
-  const newUser = await authServices.signup({ ...req.body, avatarURL });
+  const newUser = await authServices.signup({
+    ...req.body,
+    avatarURL,
+    verificationToken,
+  });
+
+  const verifyEmail = {
+    to: email,
+    subject: "Verify your email",
+    http: `<a target="_blank" href="${BASE_URL}/api/auth/verify/${verificationToken}">Click to verify email</a>`,
+  };
+
+  await sendEmail(verifyEmail);
 
   res.status(201).json({
     user: {
@@ -35,6 +52,45 @@ const signup = async (req, res) => {
   });
 };
 
+const verify = async (req, res) => {
+  const { verificationToken } = req.params;
+  const user = await userServices.findUser({ verificationToken });
+
+  if (!user) {
+    throw HttpError(401, "User not found");
+  }
+
+  await userServices.updateUser(
+    { _id: user._id },
+    { verify: true, verificationToken: "" }
+  );
+
+  res.json({ message: "Verification successful" });
+};
+
+const resendVerifyEmail = async (req, res) => {
+  const { email } = req.body;
+  const user = await userServices.findUser({ email });
+
+  if (!user) {
+    throw HttpError(404, "User not found");
+  }
+
+  if (user.verify) {
+    throw HttpError(400, "User already verified");
+  }
+
+  const verifyEmail = {
+    to: email,
+    subject: "Verify your email",
+    http: `<a target="_blank" href="${BASE_URL}/api/auth/verify/${user.verificationToken}">Click to verify email</a>`,
+  };
+
+  await sendEmail(verifyEmail);
+
+  res.json({ message: "Verification email sent"  });
+};
+
 const signin = async (req, res) => {
   const { email, password } = req.body;
 
@@ -42,6 +98,10 @@ const signin = async (req, res) => {
 
   if (!user) {
     throw HttpError(401, "User not found");
+  }
+
+  if (!user.verify) {
+    throw HttpError(401, "Email not verify");
   }
 
   const passwordCompare = await bcrypt.compare(password, user.password);
@@ -98,6 +158,8 @@ const avatars = async (req, res) => {
 
 export default {
   signup: ctrlWrapper(signup),
+  verify: ctrlWrapper(verify),
+  resendVerifyEmail: ctrlWrapper(resendVerifyEmail),
   signin: ctrlWrapper(signin),
   current: ctrlWrapper(current),
   logout: ctrlWrapper(logout),

@@ -25,12 +25,17 @@ const userSchema = new Schema(
       enum: ["starter", "pro", "business"],
       default: "starter",
     },
-    // avatarURL: {
-    //   type: String,
-    //   required: true,
-    // },
     token: {
       type: String,
+    },
+    verify: {
+      type: Boolean,
+      default: false,
+      required: true,
+    },
+    verificationToken: {
+      type: String,
+      required: [true, "Verify token is required"],
     },
   },
   {
@@ -46,3 +51,7 @@ userSchema.post("findOneAndUpdate", haveSaveError);
 const User = model("user", userSchema);
 
 export default User;
+
+
+
+// 2CB56E513E0E74B4B472D1DCB0CE170156D2B4EAB4F741B1188DD62EADC01BC545BA5FE55F897002C784673F667FF2FB
